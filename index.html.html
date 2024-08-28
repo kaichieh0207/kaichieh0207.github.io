@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學校整潔五分量表評分系統</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .accordion {
+            margin-bottom: 20px;
+        }
+        .accordion-header {
+            background-color: #f1f1f1;
+            color: #444;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            text-align: left;
+            border: none;
+            outline: none;
+            transition: 0.4s;
+        }
+        .accordion-content {
+            padding: 0 18px;
+            background-color: white;
+            display: none;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        select {
+            width: 100%;
+            padding: 5px;
+        }
+        #overallRanking {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        #overallRanking h2 {
+            margin-top: 0;
+        }
+        .chart-container {
+            width: 100%;
+            height: 300px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>學校整潔五分量表評分系統</h1>
+    <div id="overallRanking">
+        <h2>全校總排名（前10名）</h2>
+        <ol id="overallRankingList"></ol>
+    </div>
+    <div id="grades"></div>
+
+    <script>
+        const categories = [
+            { key: 'floor', name: '地板清潔' },
+            { key: 'furniture', name: '課桌椅與櫃子' },
+            { key: 'boardWindows', name: '黑板及門窗' },
+            { key: 'tools', name: '掃具與垃圾分類' },
+        ];
+
+        const initialGrades = [
+            { id: 6, name: '六年級', classes: ['六甲', '六乙', '六丙', '六丁', '六戊', '六己'] },
+            { id: 5, name: '五年級', classes: ['五甲', '五乙', '五丙', '五丁', '五戊', '五己'] },
+            { id: 4, name: '四年級', classes: ['四甲', '四乙', '四丙', '四丁', '四戊', '四己'] },
+            { id: 3, name: '三年級', classes: ['三甲', '三乙', '三丙', '三丁', '三戊', '三己'] },
+            { id: 2, name: '二年級', classes: ['二甲', '二乙', '二丙', '二丁', '二戊', '二己'] },
+            { id: 1, name: '一年級', classes: ['一甲', '一乙', '一丙', '一丁', '一戊'] },
+        ];
+
+        let grades = initialGrades.map(grade => ({
+            ...grade,
+            classes: grade.classes.map(className => ({
+                name: className,
+                scores: { floor: 0, furniture: 0, boardWindows: 0, tools: 0 }
+            }))
+        }));
+
+        function calculateTotalScore(scores) {
+            return Object.values(scores).reduce((sum, score) => sum + score, 0);
+        }
+
+        function updateScore(gradeId, className, category, newScore) {
+            grades = grades.map(grade => 
+                grade.id === gradeId
+                    ? {
+                        ...grade, 
+                        classes: grade.classes.map(cls => 
+                            cls.name === className
+                                ? {...cls, scores: {...cls.scores, [category]: parseInt(newScore)}}
+                                : cls
+                        )
+                    }
+                    : grade
+            );
+            updateUI();
+        }
+
+        function calculateRanking(grade) {
+            return [...grade.classes].sort((a, b) => calculateTotalScore(b.scores) - calculateTotalScore(a.scores));
+        }
+
+        function getOverallRanking() {
+            return grades
+                .flatMap(grade => grade.classes)
+                .sort((a, b) => calculateTotalScore(b.scores) - calculateTotalScore(a.scores))
+                .slice(0, 10);
+        }
+
+        function createScoreTable(grade) {
+            let table = `<table>
+                <thead>
+                    <tr>
+                        <th>班級</th>
+                        ${categories.map(cat => `<th>${cat.name}</th>`).join('')}
+                        <th>總分</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+            
+            grade.classes.forEach(cls => {
+                table += `<tr>
+                    <td>${cls.name}</td>
+                    ${categories.map(cat => `
+                        <td>
+                            <select onchange="updateScore(${grade.id}, '${cls.name}', '${cat.key}', this.value)">
+                                ${[0, 1, 2, 3, 4, 5].map(score => `
+                                    <option value="${score}" ${cls.scores[cat.key] === score ? 'selected' : ''}>
+                                        ${score}分
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </td>
+                    `).join('')}
+                    <td>${calculateTotalScore(cls.scores)}</td>
+                </tr>`;
+            });
+            
+            table += `</tbody></table>`;
+            return table;
+        }
+
+        function createRankingList(grade) {
+            const ranking = calculateRanking(grade);
+            return `<ol>${ranking.map(cls => `
+                <li>${cls.name}: ${calculateTotalScore(cls.scores)}分</li>
+            `).join('')}</ol>`;
+        }
+
+        function createChart(grade) {
+            const chartId = `chart-${grade.id}`;
+            return `<canvas id="${chartId}"></canvas>`;
+        }
+
+        function updateChart(grade) {
+            const ctx = document.getElementById(`chart-${grade.id}`);
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: grade.classes.map(cls => cls.name),
+                    datasets: [{
+                        label: '總分',
+                        data: grade.classes.map(cls => calculateTotalScore(cls.scores)),
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 20
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateUI() {
+            const gradesContainer = document.getElementById('grades');
+            gradesContainer.innerHTML = grades.map(grade => `
+                <div class="accordion">
+                    <button class="accordion-header">${grade.name}</button>
+                    <div class="accordion-content">
+                        <h3>評分表格</h3>
+                        ${createScoreTable(grade)}
+                        <h3>排名</h3>
+                        ${createRankingList(grade)}
+                        <h3>圖表</h3>
+                        <div class="chart-container">
+                            ${createChart(grade)}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            grades.forEach(grade => updateChart(grade));
+
+            const overallRankingList = document.getElementById('overallRankingList');
+            overallRankingList.innerHTML = getOverallRanking().map((cls, index) => `
+                <li>${cls.name}: ${calculateTotalScore(cls.scores)}分</li>
+            `).join('');
+
+            const accordions = document.getElementsByClassName('accordion-header');
+            for (let i = 0; i < accordions.length; i++) {
+                accordions[i].addEventListener('click', function() {
+                    this.classList.toggle('active');
+                    const content = this.nextElementSibling;
+                    if (content.style.display === 'block') {
+                        content.style.display = 'none';
+                    } else {
+                        content.style.display = 'block';
+                    }
+                });
+            }
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>
